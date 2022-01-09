@@ -1,5 +1,6 @@
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
+import { v4 as uuidv4 } from "uuid";
 import sharp, { OutputInfo } from "sharp";
 const s3Client = new S3Client({ region: "us-east-1" });
 
@@ -11,71 +12,59 @@ export class Thumbnail {
   }
 
   public async generateThumbnail(req: Request, res: Response) {
-    // console.log(`REQ OBJECT -> ${req.body}`);
+    try {
+      const image = req.file?.path;
 
-    // E se aqui dentro eu chamar 3 funções assíncronas e usar um Promise.all?
+      const resizedImages = await this.resizeImage(image, res);
 
-    const image = req.file?.path;
+      this.uploadToS3(resizedImages, res);
 
-    const resizedImages = await this.resizeImage(image);
-
-    this.uploadToS3(resizedImages);
-
-    res.json("Image uploaded succesfully");
+      return res.status(200).json("Images uploaded succesfully");
+    } catch (error) {
+      return res
+        .status(400)
+        .json("An error occurred when uploading the images");
+    }
   }
 
   private async resizeImage(image: any, res?: Response) {
-    // console.log(`IMAGEM -> ${JSON.stringify(image)}`);
-    try {
-      // await sharp(image)
-      //   .resize(400, 300)
-      //   .resize(160, 120)
-      //   .resize(120, 120)
-      //   .toFile("output.jpeg");
+    const sizes = [
+      {
+        x: 400,
+        y: 300,
+      },
+      {
+        x: 160,
+        y: 120,
+      },
+      {
+        x: 120,
+        y: 120,
+      },
+    ];
 
-      //Mudar o nome desse array
-      const sizes = [
-        {
-          path: "large.jpg",
-          x: 400,
-          y: 300,
-        },
-        {
-          path: "medium.jpg",
-          x: 160,
-          y: 120,
-        },
-        {
-          path: "small.jpg",
-          x: 120,
-          y: 120,
-        },
-      ];
+    const resizedImages = await Promise.all(
+      sizes.map((size) => {
+        return sharp(image).toFormat("png").resize(size.x, size.y).toBuffer();
+      })
+    );
 
-      const resizedImages = await Promise.all(
-        sizes.map((size) => {
-          return sharp(image).resize(size.x, size.y).toFile(size.path);
-        })
-      );
-
-      console.log(resizedImages);
-
-      return resizedImages;
-    } catch (error) {
-      res?.status(400).json("An error occurred when resizing images");
-    }
-
-    //Retornar um array com as imagens?
+    return resizedImages;
   }
 
-  private async uploadToS3(images: OutputInfo[] | undefined) {
-    // Função pra enviar as imagens pro S3
-    const s3BucketParams = { Bucket: "", Key: "", Body: "" };
-
+  private async uploadToS3(images: any, res?: Response) {
     try {
-      const data = await s3Client.send(new PutObjectCommand(s3BucketParams));
+      for (const resizedImage of images) {
+        const s3BucketParams = {
+          Bucket: "bucketnail",
+          Key: `thumbnail/${uuidv4()}.png`,
+          Body: resizedImage,
+          ContentType: "image",
+        };
+        const data = await s3Client.send(new PutObjectCommand(s3BucketParams));
+      }
     } catch (err) {
-      return "";
+      return res?.status(400).json("An error occurred when uploading to S3");
     }
   }
 }

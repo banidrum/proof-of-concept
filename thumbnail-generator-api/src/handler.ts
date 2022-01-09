@@ -1,16 +1,10 @@
 import express from "express";
 import multer from "multer";
+import serverles from "serverless-http";
 import { Thumbnail } from "./thumbnail";
+import { imageFilter } from "./utils/imageFilter";
 
 const thumbnail = new Thumbnail();
-
-const imageFilter = (req: any, file: any, cb: any) => {
-  console.log(`FILE -> ${JSON.stringify(file)}`);
-  if (!file.originalname.match(/\.(jpg|jpeg|png)$/)) {
-    return cb(new Error("Only JPG and PNG formats are allowed"));
-  }
-  cb(null, true);
-};
 
 const upload = multer({ dest: "tmp/", fileFilter: imageFilter });
 
@@ -28,3 +22,5 @@ app.post(
 app.listen(3000, () => {
   console.log("Server is up and running");
 });
+
+// module.exports.handler = serverles(app);

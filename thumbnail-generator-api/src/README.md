@@ -19,3 +19,7 @@ To run the container, follow these steps:
 - Build the image by running `docker build -f Dockerfile`
 
 - Run the container by running `docker run <container_id>`
+
+## Running tests
+
+To run the unit tests, simply run `npm run test`
